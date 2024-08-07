@@ -171,13 +171,32 @@ defmodule Spike.Form do
 
     casted_params =
       params
-      |> Tarams.cast!(
+      |> Tarams.cast(
         tarams_schema_definition(
           struct.__struct__,
           Map.keys(params),
           Keyword.get(options, :cast_private, false)
         )
       )
+      |> case do
+        {:ok, casted_params} ->
+          casted_params
+
+        {:error, errors_map} ->
+          # Remove uncastable params and cast again
+          error_keys = Enum.map(errors_map, &(elem(&1, 0) |> to_string))
+
+          Enum.reduce(error_keys, params, fn key, acc ->
+            Map.delete(acc, key)
+          end)
+          |> Tarams.cast!(
+            tarams_schema_definition(
+              struct.__struct__,
+              Map.keys(params),
+              Keyword.get(options, :cast_private, false)
+            )
+          )
+      end
       |> Mappable.to_map(keys: :atoms, shallow: true)
 
     struct
